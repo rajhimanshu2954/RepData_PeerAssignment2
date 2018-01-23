@@ -1,0 +1,168 @@
+---
+title: "Exploring the U.S. NOAA storm database"
+author: "Himanshu Raj"
+date: "9 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+##Data Processing
+
+###About Data
+The data for this assignment come in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. You can download the file from the course web site.
+
+The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
+
+###Goal
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+2. Across the United States, which types of events have the greatest economic consequences?
+
+### Loading and viewing the data
+```{r load, results=FALSE, message=FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+```
+```{r reading}
+setwd("D:/Test/Coursera/RepData_PeerAssessment2/RepData_PeerAssignment2")
+stormData<- read.csv("repdata%2Fdata%2FStormData.csv.bz2", header = T, sep = ",")
+head(stormData)
+```
+
+###Calculating Fatalities
+```{r Fatalities}
+aggDataFat<- aggregate(stormData$FATALITIES ~ stormData$EVTYPE, FUN=sum, na.rm=T)
+aggDataFat<- aggDataFat[complete.cases(aggDataFat), ]
+colnames(aggDataFat)<- c("Event", "Fatalities")
+aggDataFat<- aggDataFat[order(aggDataFat$Fatalities, decreasing = T),]
+```
+
+
+###Calculating Injured
+```{r Injured}
+aggDataInj<- aggregate(stormData$INJURIES ~ stormData$EVTYPE, FUN=sum, na.rm=T)
+aggDataInj<- aggDataInj[complete.cases(aggDataInj), ]
+colnames(aggDataInj)<- c("Event", "Injuries")
+aggDataInj<- aggDataInj[order(aggDataInj$Injuries, decreasing = T),]
+```
+
+###Plotting Fatalities and Injuries
+```{r PlotInjuredFatal}
+aggDataFat<- aggDataFat[1:10, ]
+aggDataInj<- aggDataInj[1:10, ]
+par(mfrow = c(1, 2), mar = c(12, 4, 3, 2), mgp = c(3, 1, 0), cex = 0.8)
+barplot(aggDataFat$Fatalities, las = 3, names.arg = aggDataFat$Event, main = "Events with Highest Fatalities", 
+        ylab = "Number of fatalities", col = "green")
+barplot(aggDataInj$Injuries, las = 3, names.arg = aggDataInj$Event, main = "Events with Highest Injuries", 
+        ylab = "Number of injuries", col = "green")
+```
+
+
+##Finding which types of events have the greatest economic consequences
+
+###Subsetting the Data
+```{r Subset}
+newdata<- stormData[, c("COUNTYNAME", "STATE", "EVTYPE", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP", "WFO", "LATITUDE")]
+```
+
+###Finding unique values of Exponential code
+```{r Unique}
+unique(newdata$PROPDMGEXP)
+```
+
+###Substituting with the correct values to calculate the total
+```{r SubPropDMG}
+newdata$PROPEXP[newdata$PROPDMGEXP == "K"] <- 1000
+newdata$PROPEXP[newdata$PROPDMGEXP == "M"] <- 1e+06
+newdata$PROPEXP[newdata$PROPDMGEXP == ""] <- 1
+newdata$PROPEXP[newdata$PROPDMGEXP == "B"] <- 1e+09
+newdata$PROPEXP[newdata$PROPDMGEXP == "m"] <- 1e+06
+newdata$PROPEXP[newdata$PROPDMGEXP == "0"] <- 1
+newdata$PROPEXP[newdata$PROPDMGEXP == "5"] <- 1e+05
+newdata$PROPEXP[newdata$PROPDMGEXP == "6"] <- 1e+06
+newdata$PROPEXP[newdata$PROPDMGEXP == "4"] <- 10000
+newdata$PROPEXP[newdata$PROPDMGEXP == "2"] <- 100
+newdata$PROPEXP[newdata$PROPDMGEXP == "3"] <- 1000
+newdata$PROPEXP[newdata$PROPDMGEXP == "h"] <- 100
+newdata$PROPEXP[newdata$PROPDMGEXP == "7"] <- 1e+07
+newdata$PROPEXP[newdata$PROPDMGEXP == "H"] <- 100
+newdata$PROPEXP[newdata$PROPDMGEXP == "1"] <- 10
+newdata$PROPEXP[newdata$PROPDMGEXP == "8"] <- 1e+08
+```
+
+###Assigning '0' to invalid exponent data
+```{r InvalidExpDataProp}
+newdata$PROPEXP[newdata$PROPDMGEXP == "+"] <- 0
+newdata$PROPEXP[newdata$PROPDMGEXP == "-"] <- 0
+newdata$PROPEXP[newdata$PROPDMGEXP == "?"] <- 0
+```
+
+###Calculating the property damage value
+```{r PropDMGVal}
+newdata$PROPDMG_Total<- newdata$PROPEXP*newdata$PROPDMG
+```
+
+###calculcating the sum of total propert damage
+```{r SumPropDMG}
+aggdata_PropDmg<- aggregate(newdata$PROPDMG_Total~newdata$EVTYPE, FUN = sum, na.rm=T)
+names(aggdata_PropDmg)<- c("Event","TotalProp_Dmg")
+aggdata_PropDmg<- aggdata_PropDmg[order(aggdata_PropDmg$TotalProp_Dmg, decreasing = T), ]
+```
+
+###Finding unique values of Exponential code for Crop Damage
+```{r Unique2}
+unique(newdata$CROPDMGEXP)
+```
+
+###Substituting with the correct values to calculate the total
+```{r SubCropDMG}
+newdata$CROPEXP[newdata$CROPDMGEXP == "M"] <- 1e+06
+newdata$CROPEXP[newdata$CROPDMGEXP == "K"] <- 1000
+newdata$CROPEXP[newdata$CROPDMGEXP == "m"] <- 1e+06
+newdata$CROPEXP[newdata$CROPDMGEXP == "B"] <- 1e+09
+newdata$CROPEXP[newdata$CROPDMGEXP == "0"] <- 1
+newdata$CROPEXP[newdata$CROPDMGEXP == "k"] <- 1000
+newdata$CROPEXP[newdata$CROPDMGEXP == "2"] <- 100
+newdata$CROPEXP[newdata$CROPDMGEXP == ""] <- 1
+```
+
+###Assigning '0' to invalid exponent data
+```{r InvCropDMG}
+newdata$CROPEXP[newdata$CROPDMGEXP == "?"] <- 0
+```
+
+###Calculating the crop damage value
+```{r CropDMGVal}
+newdata$CROPDMG_Total <- newdata$CROPDMG * newdata$CROPEXP
+```
+
+###Calculcating the sum of total crop damage
+```{r SumCropDMG}
+aggdata_CropDmg<- aggregate(newdata$CROPDMG_Total~newdata$EVTYPE, FUN = sum, na.rm=T)
+names(aggdata_CropDmg)<- c("Event","TotalCrop_Dmg")
+aggdata_CropDmg<- aggdata_CropDmg[order(aggdata_CropDmg$TotalCrop_Dmg, decreasing = T), ]
+```
+
+###Plotting the Property Damage and Crop Damage
+```{r PlotDMG}
+aggdata_PropDmg<- aggdata_PropDmg[1:10,]
+aggdata_PropDmg$TotalProp_Dmg<- aggdata_PropDmg$TotalProp_Dmg/(10^9)
+aggdata_CropDmg<- aggdata_CropDmg[1:10,]
+aggdata_CropDmg$TotalCrop_Dmg<- aggdata_CropDmg$TotalCrop_Dmg/(10^9)
+par(mfrow = c(1, 2), mar = c(12, 4, 3, 2), mgp = c(3, 1, 0), cex = 0.8)
+barplot(aggdata_PropDmg$TotalProp_Dmg, las = 3, names.arg = aggdata_PropDmg$Event, main = "Events with Highest Property Damage", 
+        ylab = "Damage Cost ($ billions)", col = "green")
+barplot(aggdata_CropDmg$TotalCrop_Dmg, las = 3, names.arg = aggdata_CropDmg$Event, main = "Events With Highest Crop Damages", 
+        ylab = "Damage Cost ($ billions)", col = "green")
+```
+
+
